@@ -1,10 +1,21 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../store/auth.store';
+import { useWebSocket } from '../hooks/useWebSocket';
+import { socketService } from '../services/socket';
 
 function Home(): React.JSX.Element {
   const { user, loading, logout } = useAuth();
   const navigate = useNavigate();
+  const { status } = useWebSocket();
+
+  useEffect(() => {
+    if (user) {
+      socketService.connect();
+    } else {
+      socketService.disconnect();
+    }
+  }, [user]);
 
   async function handleLogout(): Promise<void> {
     await logout();
@@ -49,6 +60,29 @@ function Home(): React.JSX.Element {
               >
                 Log Out
               </button>
+            </div>
+
+            {/* Dev indicator — visible only when authenticated */}
+            <div
+              id="ws-status-indicator"
+              className={`flex items-center gap-2 text-xs font-mono px-3 py-1 rounded-full border ${
+                status === 'connected'
+                  ? 'border-green-700 bg-green-950 text-green-400'
+                  : status === 'connecting'
+                    ? 'border-yellow-700 bg-yellow-950 text-yellow-400'
+                    : 'border-red-800 bg-red-950 text-red-400'
+              }`}
+            >
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  status === 'connected'
+                    ? 'bg-green-400'
+                    : status === 'connecting'
+                      ? 'bg-yellow-400 animate-pulse'
+                      : 'bg-red-500'
+                }`}
+              />
+              WebSocket: {status === 'connected' ? 'Connected' : status === 'connecting' ? 'Connecting…' : 'Disconnected'}
             </div>
           </div>
         ) : (
