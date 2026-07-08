@@ -5,7 +5,8 @@ export type SocketStatus = 'connecting' | 'connected' | 'disconnected';
 type MessageListener = (payload: Record<string, unknown>) => void;
 type StatusListener = (status: SocketStatus) => void;
 
-const WS_URL = 'ws://localhost:3000';
+const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+const WS_URL = `${WS_PROTOCOL}//${window.location.host}/ws`;
 
 class SocketService {
   private socket: WebSocket | null = null;

@@ -49,6 +49,7 @@ function Home(): React.JSX.Element {
             <div className="flex gap-4">
               <button
                 id="btn-play"
+                onClick={() => navigate('/queue')}
                 className="px-6 py-3 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-500 transition-colors"
               >
                 Play

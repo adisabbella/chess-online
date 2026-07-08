@@ -7,6 +7,7 @@ import { AUTH_COOKIE_NAME } from '../config/cookie';
 import { connectionManager } from '../managers/connection.manager';
 import { eventDispatcher } from './eventDispatcher';
 import { AuthenticatedSocket } from './websocket.types';
+import { registerMatchmakingHandlers } from './handlers/matchmaking.handlers';
 
 function getUserIdFromRequest(req: IncomingMessage): string | null {
   const cookieHeader = req.headers.cookie ?? '';
@@ -26,10 +27,13 @@ function getUserIdFromRequest(req: IncomingMessage): string | null {
 export function initWebSocketServer(httpServer: HttpServer): void {
   const wss = new WebSocketServer({ server: httpServer });
 
+  registerMatchmakingHandlers();
+
   wss.on('connection', (socket: AuthenticatedSocket, req: IncomingMessage) => {
     const userId = getUserIdFromRequest(req);
 
     if (!userId) {
+      console.log('[ws] rejected connection — no valid cookie');
       socket.close(1008, 'Unauthorized');
       return;
     }
@@ -39,6 +43,7 @@ export function initWebSocketServer(httpServer: HttpServer): void {
     connectionManager.addConnection(userId, socket);
 
     socket.on('message', (data) => {
+      console.log(`[ws] message from ${userId}: ${data.toString()}`);
       eventDispatcher.dispatch(socket, userId, data.toString());
     });
 

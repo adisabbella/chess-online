@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   server: {
+    host: true,
     port: 5173,
     proxy: {
       '/health': 'http://localhost:3000',
@@ -11,6 +12,7 @@ export default defineConfig({
       '/ws': {
         target: 'ws://localhost:3000',
         ws: true,
+        rewriteWsOrigin: true,
       },
     },
   },
