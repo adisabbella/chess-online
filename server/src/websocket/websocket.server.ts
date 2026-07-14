@@ -8,6 +8,7 @@ import { connectionManager } from '../managers/connection.manager';
 import { eventDispatcher } from './eventDispatcher';
 import { AuthenticatedSocket } from './websocket.types';
 import { registerMatchmakingHandlers } from './handlers/matchmaking.handlers';
+import { registerGameHandlers } from './handlers/game.handlers';
 
 function getUserIdFromRequest(req: IncomingMessage): string | null {
   const cookieHeader = req.headers.cookie ?? '';
@@ -28,6 +29,7 @@ export function initWebSocketServer(httpServer: HttpServer): void {
   const wss = new WebSocketServer({ server: httpServer });
 
   registerMatchmakingHandlers();
+  registerGameHandlers();
 
   wss.on('connection', (socket: AuthenticatedSocket, req: IncomingMessage) => {
     const userId = getUserIdFromRequest(req);

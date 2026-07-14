@@ -27,7 +27,6 @@ All code must follow these principles:
 - No duplication of logic
 - Server is the source of truth
 - Never trust client input
-- Should be simple and look like human-written
 
 ---
 

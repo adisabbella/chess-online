@@ -134,32 +134,71 @@ Match random players into games.
 
 ---
 
-# Milestone 5 — Game Engine
+# Milestone 5 — Game Engine & Real-Time Gameplay
 
 ## Goals
 
-Implement the chess game engine.
+Implement a complete playable real-time chess game.
+
+The server becomes the authoritative owner of all game state, while clients send only user actions and render server responses.
 
 ## Tasks
 
+### Chess Engine
+
 - Integrate chess.js
-- Implement GameSession
+- Implement ChessService
+- Expand GameSession into the core gameplay class
 - Server-side move validation
 - Turn management
 - Board state management
-- Move history
-- Check detection
-- Checkmate detection
-- Stalemate detection
+- Current FEN management
+- In-memory move history
+
+### Chess Rules
+
+Support all standard chess rules:
+
+- Legal move validation
+- Check
+- Checkmate
+- Stalemate
 - Castling
 - En passant
 - Pawn promotion
-- Draw detection
-- Resignation
+- Insufficient material
+- Threefold repetition
+- Fifty-move rule
+
+### Gameplay
+
+Implement:
+
+- MAKE_MOVE event
+- GAME_STATE_UPDATE event
+- MOVE_REJECTED event
+- GAME_OVER event
+- RESIGN event
+- OFFER_DRAW event
+- RESPOND_DRAW event
+
+### Frontend
+
+- Chess board rendering
+- Piece rendering using server FEN
+- Click-to-move interaction
+- Move history panel
+- Turn indicator
+- Game status display
+- Resign button
+- Draw offer UI
 
 ## Output
 
-- Complete chess gameplay works on the server
+- Two players can play a complete chess game in real time.
+- The server enforces all chess rules.
+- Both clients remain synchronized through WebSockets.
+- Games exist only in memory.
 
 ---
 
@@ -167,49 +206,31 @@ Implement the chess game engine.
 
 ## Goals
 
-Persist all game data.
+Persist all game data permanently.
 
 ## Tasks
 
 - Create Game model
 - Create Move model
-- Implement repositories
-- Save game after every move
+- Implement GameRepository
+- Implement MoveRepository
+- Save every accepted move
 - Save move history
-- Save FEN after every move
+- Save current FEN
 - Save game status
-- Save player statistics
+- Save game result
+- Save winner
+- Update player statistics after game completion
 
 ## Output
 
-- Every game is stored permanently
-- User statistics update correctly
+- Every game is stored permanently.
+- Move history is persisted.
+- User statistics update correctly.
 
 ---
 
-# Milestone 7 — Real-Time Game Synchronization
-
-## Goals
-
-Synchronize gameplay between players.
-
-## Tasks
-
-- MAKE_MOVE event
-- GAME_STATE_UPDATE event
-- MOVE_REJECTED event
-- Update board in real time
-- Update move history
-- Handle invalid moves
-- Synchronize turn changes
-
-## Output
-
-- Both players always see identical game state
-
----
-
-# Milestone 8 — Recovery & Reconnection
+# Milestone 7 — Recovery & Reconnection
 
 ## Goals
 
@@ -220,51 +241,52 @@ Recover active games after disconnects and server restarts.
 ### Reconnection
 
 - 60-second disconnect timer
+- Notify opponent on disconnect
 - Restore player connection
-- Notify opponent
+- Restore current game state
 - Resume gameplay
 
 ### Crash Recovery
 
 - Restore active games from database
-- Reconstruct chess state using FEN
-- Rebuild GameSession instances
-- Allow players to continue existing games
+- Reconstruct chess state using saved FEN
+- Recreate GameSession instances
+- Register restored sessions
+- Allow players to reconnect and continue
 
 ## Output
 
-- Refreshing browser does not lose game
-- Server restart restores active games
+- Refreshing the browser does not lose the game.
+- Temporary network failures are handled correctly.
+- Active games survive server restarts.
 
 ---
 
-# Milestone 9 — Game Completion
+# Milestone 8 — Game Completion
 
 ## Goals
 
-Handle all game-ending scenarios.
+Finalize completed games and clean up active sessions.
 
 ## Tasks
 
-- Checkmate
-- Stalemate
-- Draw agreement
-- Insufficient material
-- Threefold repetition
-- Fifty-move rule
-- Resignation
-- Abandonment
-- GameOver events
-- Final statistics update
+- Finalize completed GameSession instances
+- Archive completed games in memory after persistence
+- Remove finished sessions from GameSessionManager
+- Release player mappings
+- Prevent further actions on finished games
+- Broadcast final game state where necessary
+- Verify all game-ending flows
 
 ## Output
 
-- Every game finishes correctly
-- Results are permanently stored
+- Completed games are finalized correctly.
+- Active session memory remains clean.
+- Finished games cannot receive additional actions.
 
 ---
 
-# Milestone 10 — Frontend Polish
+# Milestone 9 — Frontend Polish
 
 ## Goals
 
@@ -287,7 +309,7 @@ Improve user experience.
 
 ---
 
-# Milestone 11 — Testing & Hardening
+# Milestone 10 — Testing & Hardening
 
 ## Goals
 
@@ -310,7 +332,7 @@ Improve stability and reliability.
 
 ---
 
-# Milestone 12 — Final Cleanup
+# Milestone 11 — Final Cleanup
 
 ## Goals
 

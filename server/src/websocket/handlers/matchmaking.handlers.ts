@@ -3,8 +3,7 @@ import { WsEventType, GameFoundPayload, QueueStatusPayload } from '@chess-online
 import { eventDispatcher } from '../eventDispatcher';
 import { matchmakingManager } from '../../managers/matchmaking.manager';
 import { connectionManager } from '../../managers/connection.manager';
-import { INITIAL_FEN } from '../../managers/game.manager';
-import { getPlayerColor, GameSession } from '../../sessions/game.session';
+import { GameSession } from '../../sessions/game.session';
 
 function sendMessage(socket: WebSocket, type: string, payload: object): void {
   if (socket.readyState === WebSocket.OPEN) {
@@ -16,7 +15,7 @@ function sendGameFound(userId: string, session: GameSession): void {
   const socket = connectionManager.getConnection(userId);
   if (!socket) return;
 
-  const color = getPlayerColor(session, userId);
+  const color = session.getPlayerColor(userId);
   if (!color) return;
 
   const payload: GameFoundPayload = {
@@ -24,7 +23,7 @@ function sendGameFound(userId: string, session: GameSession): void {
     whitePlayerId: session.whitePlayerId,
     blackPlayerId: session.blackPlayerId,
     color,
-    initialFen: INITIAL_FEN,
+    initialFen: session.getInitialFen(),
   };
 
   sendMessage(socket, WsEventType.GAME_FOUND, payload);

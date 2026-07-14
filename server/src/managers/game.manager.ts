@@ -1,8 +1,19 @@
 import crypto from 'crypto';
-import { GameSession } from '../sessions/game.session';
+import { GameSession, MoveResult, DrawOfferResult, DrawRespondResult } from '../sessions/game.session';
 import { gameSessionManager } from './gameSession.manager';
+import { GameOverPayload } from '@chess-online/shared';
 
-export const INITIAL_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+interface ResignSuccess {
+  type: 'game_over';
+  gameOver: GameOverPayload;
+}
+
+interface ActionRejection {
+  type: 'rejected';
+  reason: string;
+}
+
+type ResignResult = ResignSuccess | ActionRejection;
 
 class GameManager {
   createGame(playerAId: string, playerBId: string): GameSession {
@@ -12,13 +23,7 @@ class GameManager {
     const [whitePlayerId, blackPlayerId] =
       Math.random() < 0.5 ? [playerAId, playerBId] : [playerBId, playerAId];
 
-    const session: GameSession = {
-      gameId,
-      whitePlayerId,
-      blackPlayerId,
-      status: 'active',
-      createdAt: new Date(),
-    };
+    const session = new GameSession(gameId, whitePlayerId, blackPlayerId);
 
     gameSessionManager.registerSession(session);
 
@@ -27,6 +32,42 @@ class GameManager {
     );
 
     return session;
+  }
+
+  handleMove(userId: string, gameId: string, from: string, to: string, promotion?: string): MoveResult {
+    const session = gameSessionManager.getSession(gameId);
+    if (!session) {
+      return { type: 'rejected', reason: 'Game not found' };
+    }
+    return session.makeMove(userId, from, to, promotion);
+  }
+
+  handleResign(userId: string, gameId: string): ResignResult {
+    const session = gameSessionManager.getSession(gameId);
+    if (!session) {
+      return { type: 'rejected', reason: 'Game not found' };
+    }
+    return session.resign(userId);
+  }
+
+  handleOfferDraw(userId: string, gameId: string): DrawOfferResult {
+    const session = gameSessionManager.getSession(gameId);
+    if (!session) {
+      return { type: 'rejected', reason: 'Game not found' };
+    }
+    return session.offerDraw(userId);
+  }
+
+  handleRespondDraw(userId: string, gameId: string, accept: boolean): DrawRespondResult {
+    const session = gameSessionManager.getSession(gameId);
+    if (!session) {
+      return { type: 'rejected', reason: 'Game not found' };
+    }
+    return session.respondDraw(userId, accept);
+  }
+
+  removeFinishedGame(gameId: string): void {
+    gameSessionManager.removeSession(gameId);
   }
 }
 
