@@ -2,6 +2,8 @@ import { GameSession } from '../sessions/game.session';
 import { gameSessionManager } from './gameSession.manager';
 import { gameManager } from './game.manager';
 
+// ─── Result Types ─────────────────────────────────────────────────────────────
+
 interface JoinResult {
   matched: true;
   session: GameSession;
@@ -14,10 +16,17 @@ interface WaitingResult {
 
 type QueueResult = JoinResult | WaitingResult;
 
+// ─── Matchmaking Manager ──────────────────────────────────────────────────────
+
 class MatchmakingManager {
   private queue: string[] = [];
 
-  joinQueue(userId: string): QueueResult {
+  /**
+   * Adds a user to the matchmaking queue.
+   * If two players are available, creates a new game session (async — persists to DB).
+   * Throws if the user already has an active game or if game creation fails.
+   */
+  async joinQueue(userId: string): Promise<QueueResult> {
     if (gameSessionManager.hasActiveGame(userId)) {
       throw new Error('User already has an active game');
     }
@@ -34,7 +43,8 @@ class MatchmakingManager {
       const playerAId = this.queue.shift()!;
       const playerBId = this.queue.shift()!;
 
-      const session = gameManager.createGame(playerAId, playerBId);
+      // createGame is now async and persists to DB before returning
+      const session = await gameManager.createGame(playerAId, playerBId);
       console.log(`[matchmaking] matched ${playerAId} vs ${playerBId}`);
 
       return { matched: true, session };

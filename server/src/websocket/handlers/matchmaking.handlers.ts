@@ -5,6 +5,8 @@ import { matchmakingManager } from '../../managers/matchmaking.manager';
 import { connectionManager } from '../../managers/connection.manager';
 import { GameSession } from '../../sessions/game.session';
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 function sendMessage(socket: WebSocket, type: string, payload: object): void {
   if (socket.readyState === WebSocket.OPEN) {
     socket.send(JSON.stringify({ type, payload }));
@@ -29,27 +31,29 @@ function sendGameFound(userId: string, session: GameSession): void {
   sendMessage(socket, WsEventType.GAME_FOUND, payload);
 }
 
+// ─── Handler Registration ─────────────────────────────────────────────────────
+
 export function registerMatchmakingHandlers(): void {
   eventDispatcher.registerHandler(WsEventType.JOIN_QUEUE, (socket, userId) => {
-    let result;
+    void (async () => {
+      try {
+        const result = await matchmakingManager.joinQueue(userId);
 
-    try {
-      result = matchmakingManager.joinQueue(userId);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Could not join queue';
-      sendMessage(socket, WsEventType.ERROR, { message });
-      return;
-    }
+        if (result.matched) {
+          const { session } = result;
+          sendGameFound(session.whitePlayerId, session);
+          sendGameFound(session.blackPlayerId, session);
+          return;
+        }
 
-    if (result.matched) {
-      const { session } = result;
-      sendGameFound(session.whitePlayerId, session);
-      sendGameFound(session.blackPlayerId, session);
-      return;
-    }
-
-    const queuePayload: QueueStatusPayload = { position: result.position };
-    sendMessage(socket, WsEventType.QUEUE_STATUS, queuePayload);
+        const queuePayload: QueueStatusPayload = { position: result.position };
+        sendMessage(socket, WsEventType.QUEUE_STATUS, queuePayload);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Could not join queue';
+        console.error(`[matchmaking] join queue error for user ${userId}:`, err);
+        sendMessage(socket, WsEventType.ERROR, { message });
+      }
+    })();
   });
 
   eventDispatcher.registerHandler(WsEventType.LEAVE_QUEUE, (socket, userId) => {

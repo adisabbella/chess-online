@@ -13,6 +13,8 @@ import { gameManager } from '../../managers/game.manager';
 import { connectionManager } from '../../managers/connection.manager';
 import { gameSessionManager } from '../../managers/gameSession.manager';
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 function sendMessage(socket: WebSocket, type: string, payload: object): void {
   if (socket.readyState === WebSocket.OPEN) {
     socket.send(JSON.stringify({ type, payload }));
@@ -35,6 +37,8 @@ function sendToUser(userId: string, type: string, payload: object): void {
   if (socket) sendMessage(socket, type, payload);
 }
 
+// ─── Handler Registration ─────────────────────────────────────────────────────
+
 export function registerGameHandlers(): void {
   // ─── MAKE_MOVE ──────────────────────────────────────────────────────────
 
@@ -46,21 +50,29 @@ export function registerGameHandlers(): void {
       return;
     }
 
-    const result = gameManager.handleMove(userId, gameId, from, to, promotion);
+    void (async () => {
+      try {
+        const result = await gameManager.handleMove(userId, gameId, from, to, promotion);
 
-    if (result.type === 'rejected') {
-      sendMessage(socket, WsEventType.MOVE_REJECTED, { reason: result.reason });
-      return;
-    }
+        if (result.type === 'rejected') {
+          sendMessage(socket, WsEventType.MOVE_REJECTED, { reason: result.reason });
+          return;
+        }
 
-    // Broadcast state update to both players
-    broadcastToGame(gameId, WsEventType.GAME_STATE_UPDATE, result.stateUpdate);
+        // Persistence succeeded — broadcast state update to both players
+        broadcastToGame(gameId, WsEventType.GAME_STATE_UPDATE, result.stateUpdate);
 
-    if (result.type === 'game_over') {
-      broadcastToGame(gameId, WsEventType.GAME_OVER, result.gameOver);
-      gameManager.removeFinishedGame(gameId);
-      console.log(`[game] game ${gameId} ended: ${result.gameOver.reason}`);
-    }
+        if (result.type === 'game_over') {
+          broadcastToGame(gameId, WsEventType.GAME_OVER, result.gameOver);
+          gameManager.removeFinishedGame(gameId);
+          console.log(`[game] game ${gameId} ended: ${result.gameOver.reason}`);
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Move persistence failed';
+        console.error(`[game] move persistence error in game ${gameId}:`, err);
+        sendMessage(socket, WsEventType.ERROR, { message });
+      }
+    })();
   });
 
   // ─── RESIGN ─────────────────────────────────────────────────────────────
@@ -73,16 +85,24 @@ export function registerGameHandlers(): void {
       return;
     }
 
-    const result = gameManager.handleResign(userId, gameId);
+    void (async () => {
+      try {
+        const result = await gameManager.handleResign(userId, gameId);
 
-    if (result.type === 'rejected') {
-      sendMessage(socket, WsEventType.ERROR, { message: result.reason });
-      return;
-    }
+        if (result.type === 'rejected') {
+          sendMessage(socket, WsEventType.ERROR, { message: result.reason });
+          return;
+        }
 
-    broadcastToGame(gameId, WsEventType.GAME_OVER, result.gameOver);
-    gameManager.removeFinishedGame(gameId);
-    console.log(`[game] game ${gameId} ended: RESIGN`);
+        broadcastToGame(gameId, WsEventType.GAME_OVER, result.gameOver);
+        gameManager.removeFinishedGame(gameId);
+        console.log(`[game] game ${gameId} ended: RESIGN`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Resign persistence failed';
+        console.error(`[game] resign persistence error in game ${gameId}:`, err);
+        sendMessage(socket, WsEventType.ERROR, { message });
+      }
+    })();
   });
 
   // ─── OFFER_DRAW ─────────────────────────────────────────────────────────
@@ -95,6 +115,7 @@ export function registerGameHandlers(): void {
       return;
     }
 
+    // offerDraw is synchronous — no persistence needed for a draw offer
     const result = gameManager.handleOfferDraw(userId, gameId);
 
     if (result.type === 'rejected') {
@@ -102,13 +123,11 @@ export function registerGameHandlers(): void {
       return;
     }
 
-    // Notify opponent about the draw offer
     const session = gameSessionManager.getSession(gameId);
     if (!session) return;
 
-    const opponentId = userId === session.whitePlayerId
-      ? session.blackPlayerId
-      : session.whitePlayerId;
+    const opponentId =
+      userId === session.whitePlayerId ? session.blackPlayerId : session.whitePlayerId;
 
     const drawPayload: DrawOfferedPayload = {
       gameId,
@@ -129,23 +148,31 @@ export function registerGameHandlers(): void {
       return;
     }
 
-    const result = gameManager.handleRespondDraw(userId, gameId, accept);
+    void (async () => {
+      try {
+        const result = await gameManager.handleRespondDraw(userId, gameId, accept);
 
-    if (result.type === 'rejected') {
-      sendMessage(socket, WsEventType.ERROR, { message: result.reason });
-      return;
-    }
+        if (result.type === 'rejected') {
+          sendMessage(socket, WsEventType.ERROR, { message: result.reason });
+          return;
+        }
 
-    if (result.type === 'game_over') {
-      broadcastToGame(gameId, WsEventType.GAME_OVER, result.gameOver);
-      gameManager.removeFinishedGame(gameId);
-      console.log(`[game] game ${gameId} ended: DRAW_AGREEMENT`);
-      return;
-    }
+        if (result.type === 'game_over') {
+          broadcastToGame(gameId, WsEventType.GAME_OVER, result.gameOver);
+          gameManager.removeFinishedGame(gameId);
+          console.log(`[game] game ${gameId} ended: DRAW_AGREEMENT`);
+          return;
+        }
 
-    // Draw declined — notify both players
-    const drawResponse: DrawResponsePayload = { gameId, accepted: false };
-    broadcastToGame(gameId, WsEventType.DRAW_RESPONSE, drawResponse);
-    console.log(`[game] draw declined in game ${gameId}`);
+        // Draw declined — notify both players
+        const drawResponse: DrawResponsePayload = { gameId, accepted: false };
+        broadcastToGame(gameId, WsEventType.DRAW_RESPONSE, drawResponse);
+        console.log(`[game] draw declined in game ${gameId}`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Draw response persistence failed';
+        console.error(`[game] draw response persistence error in game ${gameId}:`, err);
+        sendMessage(socket, WsEventType.ERROR, { message });
+      }
+    })();
   });
 }
