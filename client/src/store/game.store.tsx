@@ -21,6 +21,10 @@ interface GameState {
   gameOverData: GameOverPayload | null;
   drawOffer: { from: 'self' | 'opponent' } | null;
   moveRejectedReason: string | null;
+  /** True when the opponent has disconnected and their reconnect timer is running. */
+  opponentDisconnected: boolean;
+  /** Seconds remaining on the opponent's reconnect timer (as reported by server). */
+  opponentDisconnectedRemainingSeconds: number | null;
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -33,7 +37,9 @@ type GameAction =
   | { type: 'CLEAR_DRAW_OFFER' }
   | { type: 'MOVE_REJECTED'; reason: string }
   | { type: 'CLEAR_MOVE_REJECTED' }
-  | { type: 'CLEAR_GAME' };
+  | { type: 'CLEAR_GAME' }
+  | { type: 'SET_OPPONENT_DISCONNECTED'; remainingSeconds: number }
+  | { type: 'SET_OPPONENT_RECONNECTED' };
 
 // ─── Context Value ────────────────────────────────────────────────────────────
 
@@ -46,6 +52,8 @@ interface GameContextValue extends GameState {
   setMoveRejected: (reason: string) => void;
   clearMoveRejected: () => void;
   clearGame: () => void;
+  setOpponentDisconnected: (remainingSeconds: number) => void;
+  setOpponentReconnected: () => void;
 }
 
 // ─── Reducer ──────────────────────────────────────────────────────────────────
@@ -62,6 +70,8 @@ const initialState: GameState = {
   gameOverData: null,
   drawOffer: null,
   moveRejectedReason: null,
+  opponentDisconnected: false,
+  opponentDisconnectedRemainingSeconds: null,
 };
 
 function gameReducer(state: GameState, action: GameAction): GameState {
@@ -76,9 +86,17 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         gameStatus: 'active',
       };
 
-    case 'UPDATE_STATE':
+    case 'UPDATE_STATE': {
+      // When reconnecting after a refresh or server restart, the server sends
+      // GAME_STATE_UPDATE with `color` and `gameId`. Use them to restore the
+      // game context even if SET_GAME was never called in this browser session.
+      const restoredGameId = action.payload.gameId ?? state.gameId;
+      const restoredColor = action.payload.color ?? state.color;
+
       return {
         ...state,
+        gameId: restoredGameId,
+        color: restoredColor,
         fen: action.payload.fen,
         moveHistory: action.payload.moveHistory,
         turn: action.payload.turn,
@@ -89,6 +107,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           : null,
         moveRejectedReason: null,
       };
+    }
 
     case 'GAME_OVER':
       return {
@@ -96,6 +115,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         gameOverData: action.payload,
         gameStatus: 'finished',
         drawOffer: null,
+        opponentDisconnected: false,
+        opponentDisconnectedRemainingSeconds: null,
       };
 
     case 'SET_DRAW_OFFER':
@@ -112,6 +133,20 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'CLEAR_GAME':
       return { ...initialState };
+
+    case 'SET_OPPONENT_DISCONNECTED':
+      return {
+        ...state,
+        opponentDisconnected: true,
+        opponentDisconnectedRemainingSeconds: action.remainingSeconds,
+      };
+
+    case 'SET_OPPONENT_RECONNECTED':
+      return {
+        ...state,
+        opponentDisconnected: false,
+        opponentDisconnectedRemainingSeconds: null,
+      };
 
     default:
       return state;
@@ -172,6 +207,14 @@ export function GameProvider({ children }: { children: React.ReactNode }): React
     dispatch({ type: 'CLEAR_GAME' });
   }, []);
 
+  const setOpponentDisconnected = useCallback((remainingSeconds: number) => {
+    dispatch({ type: 'SET_OPPONENT_DISCONNECTED', remainingSeconds });
+  }, []);
+
+  const setOpponentReconnected = useCallback(() => {
+    dispatch({ type: 'SET_OPPONENT_RECONNECTED' });
+  }, []);
+
   return (
     <GameContext.Provider
       value={{
@@ -184,6 +227,8 @@ export function GameProvider({ children }: { children: React.ReactNode }): React
         setMoveRejected,
         clearMoveRejected,
         clearGame,
+        setOpponentDisconnected,
+        setOpponentReconnected,
       }}
     >
       {children}

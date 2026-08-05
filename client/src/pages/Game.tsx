@@ -29,6 +29,8 @@ function Game(): React.JSX.Element {
     drawOffer,
     moveRejectedReason,
     clearMoveRejected,
+    opponentDisconnected,
+    opponentDisconnectedRemainingSeconds,
   } = useGame();
 
   const { makeMove, resign, offerDraw, respondDraw } = useGameActions();
@@ -39,7 +41,7 @@ function Game(): React.JSX.Element {
     to: string;
   } | null>(null);
 
-  // Ensure socket is connected
+  // Ensure socket is connected — triggers auto-reconnect loop in SocketService
   useEffect(() => {
     socketService.connect();
   }, []);
@@ -72,8 +74,47 @@ function Game(): React.JSX.Element {
     [makeMove],
   );
 
-  // If no game data, show error state
-  if (!gameId || gameId !== routeGameId || !color) {
+  // ─── Reconnect Loading State ───────────────────────────────────────────────
+  //
+  // After a refresh or server restart, the game store starts empty. Once the
+  // WebSocket reconnects, the server sends GAME_STATE_UPDATE which populates
+  // gameId and color in the store (via UPDATE_STATE in the reducer).
+  //
+  // While waiting for that restore, show a "Reconnecting…" screen instead of
+  // the "No Active Game" error screen — but only if the route gameId matches
+  // what we expect.
+  //
+  // Cases:
+  //   1. Store has game data and it matches the route → render game
+  //   2. Store has no game data AND socket is connecting/disconnected → show reconnecting
+  //   3. Store has no game data AND socket is connected → show "no active game"
+  //      (server didn't send a restore, meaning this game doesn't exist or has ended)
+  //   4. Store has game data but different gameId → show "no active game"
+
+  const storeMatchesRoute = gameId === routeGameId;
+  const hasGameData = gameId !== null && color !== null;
+
+  if (!hasGameData || !storeMatchesRoute) {
+    // Case 2: socket is still connecting — show a reconnecting screen
+    if (status !== 'connected') {
+      return (
+        <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center">
+          <div className="flex flex-col items-center gap-6 text-center px-4">
+            <div className="text-6xl select-none animate-pulse">♟</div>
+            <div>
+              <h1 className="text-2xl font-bold mb-2">Reconnecting…</h1>
+              <p className="text-gray-400">Restoring your game, please wait.</p>
+            </div>
+            <div className="flex items-center gap-2 text-yellow-400 text-sm font-mono">
+              <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+              Connecting to server
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Case 3 or 4: connected but no restore received — game not available
     return (
       <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center">
         <div className="flex flex-col items-center gap-4 text-center px-4">
@@ -103,6 +144,17 @@ function Game(): React.JSX.Element {
           onSelect={handlePromotionSelect}
           onCancel={handlePromotionCancel}
         />
+      )}
+
+      {/* Opponent disconnect banner */}
+      {opponentDisconnected && (
+        <div className="bg-yellow-900/60 border-b border-yellow-700 px-4 py-2 text-center text-sm text-yellow-200 font-medium">
+          ⚠ Opponent disconnected — they have{' '}
+          <span className="font-bold text-yellow-100">
+            {opponentDisconnectedRemainingSeconds ?? 60}s
+          </span>{' '}
+          to reconnect before the game ends.
+        </div>
       )}
 
       <div className="max-w-6xl mx-auto px-4 py-6">

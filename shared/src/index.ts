@@ -38,6 +38,10 @@ export const WsEventType = {
   GAME_OVER: 'GAME_OVER',
   DRAW_OFFERED: 'DRAW_OFFERED',
   DRAW_RESPONSE: 'DRAW_RESPONSE',
+
+  // Reconnection — Server → Client
+  PLAYER_DISCONNECTED: 'PLAYER_DISCONNECTED',
+  PLAYER_RECONNECTED: 'PLAYER_RECONNECTED',
 } as const;
 
 export type WsEventTypeName = (typeof WsEventType)[keyof typeof WsEventType];
@@ -66,7 +70,8 @@ export type GameEndReason =
   | 'DRAW_AGREEMENT'
   | 'INSUFFICIENT_MATERIAL'
   | 'THREEFOLD_REPETITION'
-  | 'FIFTY_MOVE_RULE';
+  | 'FIFTY_MOVE_RULE'
+  | 'ABANDONMENT';
 
 // ─── Matchmaking Payload Types ────────────────────────────────────────────────
 
@@ -116,6 +121,17 @@ export interface RespondDrawPayload {
 
 // ─── Gameplay — Server → Client Payloads ──────────────────────────────────────
 
+/**
+ * Sent after every valid move and also immediately on player reconnect
+ * to restore the full game state on the client.
+ *
+ * `color` is included so that a client reconnecting after a refresh or
+ * server restart can determine which side they are playing without
+ * needing a separate GAME_FOUND event.
+ *
+ * `lastMove` is null when no moves have been played yet (e.g. reconnect
+ * to a freshly-started game).
+ */
 export interface GameStateUpdatePayload {
   gameId: string;
   fen: string;
@@ -123,11 +139,13 @@ export interface GameStateUpdatePayload {
     from: string;
     to: string;
     san: string;
-  };
+  } | null;
   moveHistory: MoveRecord[];
   turn: PlayerColor;
   gameStatus: GameStatus;
   isCheck: boolean;
+  /** The requesting player's own color. Always set on reconnect restore. */
+  color: PlayerColor;
 }
 
 export interface MoveRejectedPayload {
@@ -150,4 +168,17 @@ export interface DrawOfferedPayload {
 export interface DrawResponsePayload {
   gameId: string;
   accepted: boolean;
+}
+
+// ─── Reconnection Payload Types ───────────────────────────────────────────────
+
+/** Sent to the opponent when a player's WebSocket disconnects. */
+export interface PlayerDisconnectedPayload {
+  playerId: string;
+  remainingSeconds: number;
+}
+
+/** Sent to the opponent when a disconnected player reconnects. */
+export interface PlayerReconnectedPayload {
+  playerId: string;
 }

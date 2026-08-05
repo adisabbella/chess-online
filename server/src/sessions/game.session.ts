@@ -9,6 +9,21 @@ import {
 } from '@chess-online/shared';
 import { ChessService } from '../services/chess.service';
 
+// ─── Restore Data ─────────────────────────────────────────────────────────────
+
+/**
+ * Data required to reconstruct a GameSession from persistent storage.
+ * All fields come directly from the database — no chess logic is re-run.
+ */
+export interface RestoreData {
+  gameId: string;
+  whitePlayerId: string;
+  blackPlayerId: string;
+  currentFen: string;
+  moveHistory: MoveRecord[];
+  createdAt: Date;
+}
+
 // ─── Result Types ─────────────────────────────────────────────────────────────
 
 interface MoveSuccess {
@@ -75,13 +90,56 @@ export class GameSession {
   private _status: GameStatus = 'active';
   private _drawOffer: { offeredBy: string } | null = null;
 
-  constructor(gameId: string, whitePlayerId: string, blackPlayerId: string) {
+  /**
+   * Disconnect timers — keyed by userId.
+   * Each timer fires when the 60-second reconnect window expires.
+   * The callback is provided by GameManager (keeps GameSession free of service deps).
+   */
+  private disconnectTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+
+  // ─── Constructors ──────────────────────────────────────────────────────────
+
+  constructor(
+    gameId: string,
+    whitePlayerId: string,
+    blackPlayerId: string,
+    restoredFen?: string,
+    restoredHistory?: MoveRecord[],
+    restoredCreatedAt?: Date,
+  ) {
     this.gameId = gameId;
     this.whitePlayerId = whitePlayerId;
     this.blackPlayerId = blackPlayerId;
-    this.createdAt = new Date();
-    this.chess = new ChessService();
+    this.createdAt = restoredCreatedAt ?? new Date();
+    this.chess = new ChessService(restoredFen);
+    if (restoredHistory) {
+      this._moveHistory = [...restoredHistory];
+    }
   }
+
+  /**
+   * Reconstructs a GameSession from persisted data.
+   * Uses the stored FEN directly — no move replay required.
+   * Move history is set from the DB records.
+   */
+  static restore(data: RestoreData): GameSession {
+    const session = new GameSession(
+      data.gameId,
+      data.whitePlayerId,
+      data.blackPlayerId,
+      data.currentFen,
+      data.moveHistory,
+      data.createdAt,
+    );
+
+    console.log(
+      `[game.session] restored session ${data.gameId} — fen: ${data.currentFen.substring(0, 30)}...`,
+    );
+
+    return session;
+  }
+
+  // ─── Getters ───────────────────────────────────────────────────────────────
 
   get status(): GameStatus {
     return this._status;
@@ -97,19 +155,96 @@ export class GameSession {
     return null;
   }
 
-  private isPlayerTurn(userId: string): boolean {
-    const turn = this.chess.getTurn();
-    if (turn === 'w' && userId === this.whitePlayerId) return true;
-    if (turn === 'b' && userId === this.blackPlayerId) return true;
-    return false;
+  // ─── Disconnect Timer Management ───────────────────────────────────────────
+
+  /**
+   * Marks the player as disconnected by starting a 60-second abandon timer.
+   * If the timer fires, `onExpire` is called with the userId so that
+   * GameManager can end the game and update stats — keeping this class
+   * free of persistence and broadcast concerns.
+   */
+  markDisconnected(userId: string, onExpire: (userId: string) => void): void {
+    // Clear any existing timer for this user (safety guard)
+    this.cancelDisconnectTimer(userId);
+
+    const timer = setTimeout(() => {
+      this.disconnectTimers.delete(userId);
+      onExpire(userId);
+    }, 60_000);
+
+    this.disconnectTimers.set(userId, timer);
+    console.log(`[game.session] disconnect timer started for user ${userId} in game ${this.gameId}`);
   }
 
-  private getCurrentTurn(): PlayerColor {
-    return this.chess.getTurn() === 'w' ? 'white' : 'black';
+  /**
+   * Cancels a pending disconnect timer for the given userId.
+   * Called when the player reconnects within the window.
+   */
+  cancelDisconnectTimer(userId: string): void {
+    const existing = this.disconnectTimers.get(userId);
+    if (existing !== undefined) {
+      clearTimeout(existing);
+      this.disconnectTimers.delete(userId);
+      console.log(
+        `[game.session] disconnect timer cancelled for user ${userId} in game ${this.gameId}`,
+      );
+    }
   }
 
-  private getOpponentId(userId: string): string {
-    return userId === this.whitePlayerId ? this.blackPlayerId : this.whitePlayerId;
+  /** Returns true if the player currently has a pending disconnect timer. */
+  isDisconnected(userId: string): boolean {
+    return this.disconnectTimers.has(userId);
+  }
+
+  /**
+   * Cancels all active disconnect timers.
+   * Called when the game ends (resign, checkmate, etc.) to prevent spurious
+   * abandon callbacks firing after game removal.
+   */
+  cancelAllDisconnectTimers(): void {
+    for (const [userId, timer] of this.disconnectTimers) {
+      clearTimeout(timer);
+      console.log(
+        `[game.session] cleared timer for ${userId} on game end (game ${this.gameId})`,
+      );
+    }
+    this.disconnectTimers.clear();
+  }
+
+  // ─── State Builders ───────────────────────────────────────────────────────
+
+  getInitialFen(): string {
+    return this.chess.getFen();
+  }
+
+  /**
+   * Returns a full game-state restore payload for a reconnecting player.
+   * Includes `color` so the client can determine which side they are playing
+   * without a prior GAME_FOUND event.
+   *
+   * `lastMove` is null when no moves have been made yet.
+   */
+  getFullState(userId: string): GameStateUpdatePayload | null {
+    const color = this.getPlayerColor(userId);
+    if (!color) return null;
+
+    const lastMove =
+      this._moveHistory.length > 0
+        ? (this._moveHistory[this._moveHistory.length - 1] as MoveRecord)
+        : null;
+
+    return {
+      gameId: this.gameId,
+      fen: this.chess.getFen(),
+      lastMove: lastMove
+        ? { from: lastMove.from, to: lastMove.to, san: lastMove.san }
+        : null,
+      moveHistory: [...this._moveHistory],
+      turn: this.getCurrentTurn(),
+      gameStatus: this._status,
+      isCheck: this.chess.inCheck(),
+      color,
+    };
   }
 
   // ─── Make Move ────────────────────────────────────────────────────────────
@@ -151,16 +286,17 @@ export class GameSession {
     const gameOverData = this.detectGameEnd();
     if (gameOverData) {
       this._status = 'finished';
+      this.cancelAllDisconnectTimers();
       return {
         type: 'game_over',
-        stateUpdate: this.buildStateUpdate(moveResult.from, moveResult.to, moveResult.san),
+        stateUpdate: this.buildStateUpdate(moveResult.from, moveResult.to, moveResult.san, color),
         gameOver: gameOverData,
       };
     }
 
     return {
       type: 'accepted',
-      stateUpdate: this.buildStateUpdate(moveResult.from, moveResult.to, moveResult.san),
+      stateUpdate: this.buildStateUpdate(moveResult.from, moveResult.to, moveResult.san, color),
     };
   }
 
@@ -177,6 +313,8 @@ export class GameSession {
     }
 
     this._status = 'finished';
+    this.cancelAllDisconnectTimers();
+
     const winnerId = this.getOpponentId(userId);
     const result: GameResult = winnerId === this.whitePlayerId ? 'WHITE_WIN' : 'BLACK_WIN';
 
@@ -237,6 +375,7 @@ export class GameSession {
     if (accept) {
       this._status = 'finished';
       this._drawOffer = null;
+      this.cancelAllDisconnectTimers();
       return {
         type: 'game_over',
         gameOver: {
@@ -253,13 +392,29 @@ export class GameSession {
     return { type: 'declined' };
   }
 
-  // ─── State Builders ───────────────────────────────────────────────────────
+  // ─── Private Helpers ──────────────────────────────────────────────────────
 
-  getInitialFen(): string {
-    return this.chess.getFen();
+  private isPlayerTurn(userId: string): boolean {
+    const turn = this.chess.getTurn();
+    if (turn === 'w' && userId === this.whitePlayerId) return true;
+    if (turn === 'b' && userId === this.blackPlayerId) return true;
+    return false;
   }
 
-  private buildStateUpdate(from: string, to: string, san: string): GameStateUpdatePayload {
+  private getCurrentTurn(): PlayerColor {
+    return this.chess.getTurn() === 'w' ? 'white' : 'black';
+  }
+
+  private getOpponentId(userId: string): string {
+    return userId === this.whitePlayerId ? this.blackPlayerId : this.whitePlayerId;
+  }
+
+  private buildStateUpdate(
+    from: string,
+    to: string,
+    san: string,
+    color: PlayerColor,
+  ): GameStateUpdatePayload {
     return {
       gameId: this.gameId,
       fen: this.chess.getFen(),
@@ -268,6 +423,7 @@ export class GameSession {
       turn: this.getCurrentTurn(),
       gameStatus: this._status,
       isCheck: this.chess.inCheck(),
+      color,
     };
   }
 

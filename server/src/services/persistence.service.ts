@@ -1,6 +1,5 @@
 import { GameResult } from '@prisma/client';
 import { MoveRecord } from '@chess-online/shared';
-import { prisma } from '../config/prisma';
 import { gameRepository } from '../repositories/game.repository';
 import { moveRepository } from '../repositories/move.repository';
 import { statisticsService } from './statistics.service';
@@ -40,29 +39,29 @@ export const persistenceService = {
   },
 
   /**
-   * Persists an accepted move atomically:
+   * Persists an accepted move:
    *   1. Creates the Move record
    *   2. Updates Game.currentFen and Game.updatedAt
    *
-   * Both operations run in a single Prisma transaction.
-   * Throws on failure — callers must handle the error (do not broadcast on failure).
+   * NOTE: These run as two sequential queries rather than a Prisma interactive
+   * transaction. Neon's pgBouncer pooler runs in transaction mode and rejects
+   * interactive transactions (Prisma error P2028). Sequential writes are safe
+   * here because chess turns are strictly alternating — there is no concurrent
+   * write contention on the same game row.
+   *
+   * Throws on failure — callers handle the error via .catch() logging.
    */
   async persistMove(gameId: string, moveRecord: MoveRecord): Promise<void> {
-    await prisma.$transaction(async (tx) => {
-      await moveRepository.createMove(
-        {
-          gameId,
-          moveNumber: moveRecord.moveNumber,
-          from: moveRecord.from,
-          to: moveRecord.to,
-          san: moveRecord.san,
-          fenAfterMove: moveRecord.fen,
-        },
-        tx,
-      );
-
-      await gameRepository.updateGameState(gameId, moveRecord.fen, tx);
+    await moveRepository.createMove({
+      gameId,
+      moveNumber: moveRecord.moveNumber,
+      from: moveRecord.from,
+      to: moveRecord.to,
+      san: moveRecord.san,
+      fenAfterMove: moveRecord.fen,
     });
+
+    await gameRepository.updateGameState(gameId, moveRecord.fen);
   },
 
   /**

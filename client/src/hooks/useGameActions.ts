@@ -5,6 +5,7 @@ import {
   GameOverPayload,
   MoveRejectedPayload,
   DrawResponsePayload,
+  PlayerDisconnectedPayload,
 } from '@chess-online/shared';
 import { useWebSocket } from './useWebSocket';
 import { useGame } from '../store/game.store';
@@ -25,6 +26,8 @@ export function useGameActions(): UseGameActionsResult {
     setDrawOffer,
     clearDrawOffer,
     setMoveRejected,
+    setOpponentDisconnected,
+    setOpponentReconnected,
   } = useGame();
 
   // Use refs for stable callback references
@@ -72,12 +75,29 @@ export function useGameActions(): UseGameActionsResult {
     [clearDrawOffer],
   );
 
+  const handlePlayerDisconnected = useCallback(
+    (payload: Record<string, unknown>) => {
+      const { remainingSeconds } = payload as unknown as PlayerDisconnectedPayload;
+      setOpponentDisconnected(remainingSeconds);
+    },
+    [setOpponentDisconnected],
+  );
+
+  const handlePlayerReconnected = useCallback(
+    (_payload: Record<string, unknown>) => {
+      setOpponentReconnected();
+    },
+    [setOpponentReconnected],
+  );
+
   useEffect(() => {
     on(WsEventType.GAME_STATE_UPDATE, handleStateUpdate);
     on(WsEventType.GAME_OVER, handleGameOver);
     on(WsEventType.MOVE_REJECTED, handleMoveRejected);
     on(WsEventType.DRAW_OFFERED, handleDrawOffered);
     on(WsEventType.DRAW_RESPONSE, handleDrawResponse);
+    on(WsEventType.PLAYER_DISCONNECTED, handlePlayerDisconnected);
+    on(WsEventType.PLAYER_RECONNECTED, handlePlayerReconnected);
 
     return () => {
       off(WsEventType.GAME_STATE_UPDATE, handleStateUpdate);
@@ -85,8 +105,20 @@ export function useGameActions(): UseGameActionsResult {
       off(WsEventType.MOVE_REJECTED, handleMoveRejected);
       off(WsEventType.DRAW_OFFERED, handleDrawOffered);
       off(WsEventType.DRAW_RESPONSE, handleDrawResponse);
+      off(WsEventType.PLAYER_DISCONNECTED, handlePlayerDisconnected);
+      off(WsEventType.PLAYER_RECONNECTED, handlePlayerReconnected);
     };
-  }, [on, off, handleStateUpdate, handleGameOver, handleMoveRejected, handleDrawOffered, handleDrawResponse]);
+  }, [
+    on,
+    off,
+    handleStateUpdate,
+    handleGameOver,
+    handleMoveRejected,
+    handleDrawOffered,
+    handleDrawResponse,
+    handlePlayerDisconnected,
+    handlePlayerReconnected,
+  ]);
 
   // ─── Actions ──────────────────────────────────────────────────────────────
 
