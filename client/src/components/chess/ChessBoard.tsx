@@ -177,7 +177,9 @@ function ChessBoard({
                 <div
                   key={sq.square}
                   id={`square-${sq.square}`}
-                  className={`aspect-square flex items-center justify-center cursor-pointer transition-colors ${bgColor} hover:brightness-110`}
+                  className={`aspect-square flex items-center justify-center transition-colors ${bgColor} ${
+                    isMyTurn ? 'cursor-pointer hover:brightness-110' : 'cursor-default'
+                  }`}
                   onClick={() => handleSquareClick(sq.square)}
                 >
                   {sq.piece && <ChessPiece fenChar={sq.piece} />}

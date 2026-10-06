@@ -74,29 +74,52 @@ function Queue(): React.JSX.Element {
     navigate('/');
   }
 
+  const isConnected = status === 'connected';
+
   return (
     <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center">
-      <div className="flex flex-col items-center gap-8 text-center px-4">
+      <div className="flex flex-col items-center gap-8 text-center px-4 max-w-xs w-full">
+        {/* Animated chess piece */}
         <div className="text-7xl select-none animate-pulse">♟</div>
 
+        {/* Title */}
         <div>
           <h1 className="text-3xl font-bold tracking-tight mb-2">Finding Opponent</h1>
-          <p className="text-gray-400 text-lg">Searching for a match…</p>
+          <p className="text-gray-400 text-base">Searching for a match…</p>
         </div>
 
-        <div className="flex items-center gap-3 text-gray-400 text-sm font-mono">
-          <span
-            className={`w-2 h-2 rounded-full ${
-              status === 'connected' ? 'bg-indigo-500 animate-pulse' : 'bg-yellow-500 animate-pulse'
-            }`}
-          />
-          {status === 'connected' ? 'In queue' : 'Connecting…'}
+        {/* Step indicators */}
+        <div className="flex flex-col gap-2 w-full">
+          {/* Step 1: Connected */}
+          <div className="flex items-center gap-3 bg-gray-900 border border-gray-800 rounded-lg px-4 py-2.5">
+            <div className="w-2 h-2 rounded-full bg-green-400 shrink-0" />
+            <span className="text-sm text-gray-300">Joined the queue</span>
+          </div>
+
+          {/* Step 2: Searching */}
+          <div className="flex items-center gap-3 bg-gray-900 border border-gray-800 rounded-lg px-4 py-2.5">
+            <div
+              className={`w-2 h-2 rounded-full shrink-0 ${
+                isConnected ? 'bg-indigo-400 animate-pulse' : 'bg-yellow-500 animate-pulse'
+              }`}
+            />
+            <span className="text-sm text-gray-300">
+              {isConnected ? 'Looking for an opponent…' : 'Connecting…'}
+            </span>
+          </div>
+
+          {/* Step 3: Opponent found (pending) */}
+          <div className="flex items-center gap-3 bg-gray-900/40 border border-gray-800/50 rounded-lg px-4 py-2.5 opacity-40">
+            <div className="w-2 h-2 rounded-full bg-gray-600 shrink-0" />
+            <span className="text-sm text-gray-500">Opponent found</span>
+          </div>
         </div>
 
+        {/* Cancel button */}
         <button
           id="btn-cancel-queue"
           onClick={handleCancel}
-          className="px-5 py-2 rounded-lg border border-gray-600 text-gray-300 font-semibold hover:bg-gray-800 transition-colors text-sm"
+          className="px-6 py-2 rounded-lg border border-gray-700 text-gray-400 font-semibold hover:bg-gray-800 hover:text-gray-200 transition-colors text-sm"
         >
           Cancel
         </button>
@@ -106,3 +129,4 @@ function Queue(): React.JSX.Element {
 }
 
 export default Queue;
+

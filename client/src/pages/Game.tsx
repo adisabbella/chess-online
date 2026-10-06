@@ -165,16 +165,23 @@ function Game(): React.JSX.Element {
             ♟ Chess Online
           </h1>
           <div className="flex items-center gap-3">
-            <span className="text-xs font-mono text-gray-500">
-              Playing as{' '}
-              <span className={color === 'white' ? 'text-gray-200' : 'text-gray-400'}>
-                {color}
-              </span>
-            </span>
+            {/* Player color indicator */}
+            <div className="flex items-center gap-1.5">
+              <div
+                className={`w-4 h-4 rounded-sm border ${
+                  color === 'white'
+                    ? 'bg-gray-100 border-gray-400'
+                    : 'bg-gray-800 border-gray-600'
+                }`}
+              />
+              <span className="text-xs text-gray-500 capitalize">{color}</span>
+            </div>
+            {/* Connection dot */}
             <div
               className={`w-2 h-2 rounded-full ${
-                status === 'connected' ? 'bg-green-400' : 'bg-red-500'
+                status === 'connected' ? 'bg-green-400' : 'bg-red-500 animate-pulse'
               }`}
+              title={status === 'connected' ? 'Connected' : 'Disconnected'}
             />
           </div>
         </div>
@@ -215,7 +222,7 @@ function Game(): React.JSX.Element {
             </div>
 
             {/* Move history */}
-            <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden h-64 lg:h-80">
+            <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden" style={{ minHeight: '12rem', maxHeight: '20rem', height: 'clamp(12rem, 40vh, 20rem)' }}>
               <MoveHistory moves={moveHistory} />
             </div>
 

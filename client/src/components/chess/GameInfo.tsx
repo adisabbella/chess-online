@@ -27,6 +27,15 @@ function getResultText(data: GameOverPayload, playerColor: PlayerColor | null): 
   return playerWon ? 'You win!' : 'You lose';
 }
 
+function getResultColor(data: GameOverPayload, playerColor: PlayerColor | null): string {
+  if (data.result === 'DRAW') return 'text-gray-300';
+  if (!playerColor) return 'text-white';
+  const playerWon =
+    (data.result === 'WHITE_WIN' && playerColor === 'white') ||
+    (data.result === 'BLACK_WIN' && playerColor === 'black');
+  return playerWon ? 'text-green-400' : 'text-red-400';
+}
+
 function getReasonText(reason: string): string {
   const reasons: Record<string, string> = {
     CHECKMATE: 'Checkmate',
@@ -63,15 +72,15 @@ function GameInfo({
       {gameActive && (
         <div className="flex items-center gap-2">
           <div
-            className={`w-3 h-3 rounded-full ${
+            className={`w-3 h-3 rounded-full shrink-0 ${
               isMyTurn ? 'bg-green-400 animate-pulse' : 'bg-gray-600'
             }`}
           />
-          <span className="text-sm font-medium text-gray-300">
+          <span className={`text-sm font-semibold ${isMyTurn ? 'text-green-300' : 'text-gray-400'}`}>
             {isMyTurn ? 'Your turn' : "Opponent's turn"}
           </span>
           {isCheck && (
-            <span className="text-xs font-bold text-red-400 bg-red-950 px-2 py-0.5 rounded-full border border-red-800">
+            <span className="text-xs font-bold text-red-400 bg-red-950 px-2 py-0.5 rounded-full border border-red-800 ml-auto">
               CHECK
             </span>
           )}
@@ -94,7 +103,7 @@ function GameInfo({
       {/* Game over display */}
       {gameOverData && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-white mb-1">
+          <p className={`text-2xl font-bold mb-1 ${getResultColor(gameOverData, playerColor)}`}>
             {getResultText(gameOverData, playerColor)}
           </p>
           <p className="text-sm text-gray-400">
@@ -158,3 +167,4 @@ function GameInfo({
 }
 
 export default React.memo(GameInfo);
+
