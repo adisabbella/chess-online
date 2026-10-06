@@ -50,7 +50,7 @@ export function initWebSocketServer(httpServer: HttpServer): void {
     });
 
     socket.on('close', () => {
-      connectionManager.removeConnection(userId);
+      connectionManager.removeConnection(userId, socket);
     });
 
     socket.on('error', (err) => {

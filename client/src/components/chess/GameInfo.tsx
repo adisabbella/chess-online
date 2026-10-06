@@ -21,6 +21,9 @@ function getResultText(data: GameOverPayload, playerColor: PlayerColor | null): 
   const playerWon =
     (data.result === 'WHITE_WIN' && playerColor === 'white') ||
     (data.result === 'BLACK_WIN' && playerColor === 'black');
+  if (data.reason === 'ABANDONMENT') {
+    return playerWon ? 'You win!' : 'You lose';
+  }
   return playerWon ? 'You win!' : 'You lose';
 }
 
@@ -33,9 +36,11 @@ function getReasonText(reason: string): string {
     INSUFFICIENT_MATERIAL: 'Insufficient material',
     THREEFOLD_REPETITION: 'Threefold repetition',
     FIFTY_MOVE_RULE: 'Fifty-move rule',
+    ABANDONMENT: 'Opponent abandoned',
   };
   return reasons[reason] ?? reason;
 }
+
 
 function GameInfo({
   turn,

@@ -29,6 +29,7 @@ function Game(): React.JSX.Element {
     drawOffer,
     moveRejectedReason,
     clearMoveRejected,
+    clearGame,
     opponentDisconnected,
     opponentDisconnectedRemainingSeconds,
   } = useGame();
@@ -222,7 +223,10 @@ function Game(): React.JSX.Element {
             {!gameActive && (
               <button
                 id="btn-back-home"
-                onClick={() => navigate('/')}
+                onClick={() => {
+                  clearGame();
+                  navigate('/');
+                }}
                 className="w-full px-4 py-2.5 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-500 transition-colors"
               >
                 Back to Home

@@ -3,6 +3,7 @@ import { WsEventType, GameFoundPayload, QueueStatusPayload } from '@chess-online
 import { eventDispatcher } from '../eventDispatcher';
 import { matchmakingManager } from '../../managers/matchmaking.manager';
 import { connectionManager } from '../../managers/connection.manager';
+import { gameSessionManager } from '../../managers/gameSession.manager';
 import { GameSession } from '../../sessions/game.session';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -49,6 +50,22 @@ export function registerMatchmakingHandlers(): void {
         const queuePayload: QueueStatusPayload = { position: result.position };
         sendMessage(socket, WsEventType.QUEUE_STATUS, queuePayload);
       } catch (err) {
+        // Check if this is the "user already has an active game" case.
+        // If so, send the current game state instead of an error — the client
+        // will navigate to the existing game (reconnect path).
+        const session = gameSessionManager.getSessionByUser(userId);
+        if (session && session.status === 'active') {
+          const fullState = session.getFullState(userId);
+          if (fullState) {
+            console.log(
+              `[matchmaking] user ${userId} tried to join queue but has active game ${session.gameId} — sending game state`,
+            );
+            sendMessage(socket, WsEventType.GAME_STATE_UPDATE, fullState);
+            return;
+          }
+        }
+
+        // Genuine error — send ERROR to client
         const message = err instanceof Error ? err.message : 'Could not join queue';
         console.error(`[matchmaking] join queue error for user ${userId}:`, err);
         sendMessage(socket, WsEventType.ERROR, { message });

@@ -1,39 +1,73 @@
 import React, { useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { WsEventType, GameFoundPayload } from '@chess-online/shared';
+import { WsEventType, GameFoundPayload, GameStateUpdatePayload } from '@chess-online/shared';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useGame } from '../store/game.store';
 
 function Queue(): React.JSX.Element {
   const navigate = useNavigate();
   const { status, send, on, off } = useWebSocket();
-  const { setGame } = useGame();
+  const { setGame, updateState, gameId, gameStatus } = useGame();
   const joinedRef = useRef(false);
+
+  // ─── GAME_FOUND ───────────────────────────────────────────────────────────
+  // Normal matchmaking path: server matched us with an opponent.
 
   const handleGameFound = useCallback(
     (payload: Record<string, unknown>) => {
-      const { gameId, color, initialFen } = payload as unknown as GameFoundPayload;
-      setGame(gameId, color, initialFen);
-      navigate(`/game/${gameId}`);
+      const { gameId: foundGameId, color, initialFen } = payload as unknown as GameFoundPayload;
+      setGame(foundGameId, color, initialFen);
+      navigate(`/game/${foundGameId}`);
     },
     [navigate, setGame],
   );
 
-  // Register the GAME_FOUND listener once on mount
+  // ─── GAME_STATE_UPDATE ────────────────────────────────────────────────────
+  // Reconnect path: we already have an active game (restored after server
+  // restart or browser refresh). The server sends this immediately on connect.
+  // Navigate to the game instead of staying stuck in the queue.
+
+  const handleGameStateUpdate = useCallback(
+    (payload: Record<string, unknown>) => {
+      const state = payload as unknown as GameStateUpdatePayload;
+      if (!state.gameId) return;
+      // Restore the full game state in the store so the Game page can render
+      updateState(state);
+      navigate(`/game/${state.gameId}`);
+    },
+    [navigate, updateState],
+  );
+
   useEffect(() => {
     on(WsEventType.GAME_FOUND, handleGameFound);
+    on(WsEventType.GAME_STATE_UPDATE, handleGameStateUpdate);
     return () => {
       off(WsEventType.GAME_FOUND, handleGameFound);
+      off(WsEventType.GAME_STATE_UPDATE, handleGameStateUpdate);
     };
-  }, [on, off, handleGameFound]);
+  }, [on, off, handleGameFound, handleGameStateUpdate]);
 
-  // Send JOIN_QUEUE only when the socket is confirmed open, exactly once
+  // ─── JOIN_QUEUE ───────────────────────────────────────────────────────────
+  // Send JOIN_QUEUE only once when the socket opens.
+  // If the user already has an active game, the server will send
+  // GAME_STATE_UPDATE (handled above) instead of matching them.
+
   useEffect(() => {
     if (status === 'connected' && !joinedRef.current) {
       joinedRef.current = true;
       send(WsEventType.JOIN_QUEUE);
     }
   }, [status, send]);
+
+  // ─── Redirect if store already has an ACTIVE game (e.g. navigated back) ────
+  // Only redirect when the stored game is still active. A finished game's
+  // stale gameId must NOT pull the user out of the queue and back to the
+  // previous result screen.
+  useEffect(() => {
+    if (gameId && gameStatus === 'active') {
+      navigate(`/game/${gameId}`);
+    }
+  }, [gameId, gameStatus, navigate]);
 
   function handleCancel(): void {
     send(WsEventType.LEAVE_QUEUE);

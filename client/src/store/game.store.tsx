@@ -90,8 +90,14 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       // When reconnecting after a refresh or server restart, the server sends
       // GAME_STATE_UPDATE with `color` and `gameId`. Use them to restore the
       // game context even if SET_GAME was never called in this browser session.
+      //
+      // IMPORTANT: During normal gameplay, GAME_STATE_UPDATE is broadcast to
+      // BOTH players and `color` is set to the MOVER's color. We must NOT let
+      // it overwrite an already-established player color (which would cause
+      // Black's client to think it is playing as White after White moves).
+      // Only fall back to payload.color when state.color is not yet known.
       const restoredGameId = action.payload.gameId ?? state.gameId;
-      const restoredColor = action.payload.color ?? state.color;
+      const restoredColor = state.color ?? action.payload.color;
 
       return {
         ...state,

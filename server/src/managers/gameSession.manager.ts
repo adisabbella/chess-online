@@ -34,6 +34,11 @@ class GameSessionManager {
   hasActiveGame(userId: string): boolean {
     return this.userToGame.has(userId);
   }
+
+  /** Returns all currently active GameSessions. Used by post-restore timer setup. */
+  getAllSessions(): GameSession[] {
+    return Array.from(this.activeGames.values());
+  }
 }
 
 export const gameSessionManager = new GameSessionManager();

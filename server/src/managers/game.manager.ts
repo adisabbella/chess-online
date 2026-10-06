@@ -288,6 +288,12 @@ class GameManager {
       return;
     }
 
+    // Cancel ALL remaining disconnect timers immediately — including any timer
+    // for the opponent that may also be pending. Without this, if both players
+    // have timers (e.g. post-restore stale session), the second timer would fire
+    // after this one and overwrite the result, making the true winner appear to lose.
+    session.cancelAllDisconnectTimers();
+
     const winnerId =
       abandonedUserId === session.whitePlayerId
         ? session.blackPlayerId
@@ -305,7 +311,7 @@ class GameManager {
       result: gameResult,
       reason: 'ABANDONMENT',
       winner: winnerId,
-      finalFen: session.getInitialFen(), // returns current FEN (chess.getFen)
+      finalFen: session.getInitialFen(),
     };
 
     // Notify both players — the connected opponent gets GAME_OVER
@@ -331,6 +337,7 @@ class GameManager {
     // Remove the session
     gameSessionManager.removeSession(session.gameId);
   }
+
 
   // ─── Server Restart Recovery ────────────────────────────────────────────────
 
@@ -388,7 +395,50 @@ class GameManager {
     }
 
     console.log(`[game] restored ${restored}/${activeGames.length} active game(s)`);
+
+    // For restored sessions, start disconnect timers for players who are not
+    // currently connected. This handles stale sessions from previous server runs:
+    // if neither player reconnects within 60 seconds, the game is abandoned.
+    //
+    // We schedule this AFTER the listen callback so that players who connect
+    // immediately (within the same event loop tick as startup) are not penalised.
+    setImmediate(() => {
+      this.startTimersForDisconnectedPlayers();
+    });
   }
+
+  /**
+   * For every restored GameSession, starts a disconnect timer for each player
+   * who is not currently connected via WebSocket.
+   *
+   * Called once after server-startup recovery completes.
+   */
+  private startTimersForDisconnectedPlayers(): void {
+    const sessions = gameSessionManager.getAllSessions();
+
+    for (const session of sessions) {
+      for (const userId of [session.whitePlayerId, session.blackPlayerId]) {
+        if (!connectionManager.hasConnection(userId) && !session.isDisconnected(userId)) {
+          console.log(
+            `[game] starting post-restore abandon timer for unconnected player ${userId} in game ${session.gameId}`,
+          );
+          session.markDisconnected(userId, (disconnectedUserId) => {
+            this.handleAbandon(disconnectedUserId, session);
+          });
+
+          // Notify the other player if they ARE connected
+          const opponentId =
+            userId === session.whitePlayerId ? session.blackPlayerId : session.whitePlayerId;
+          const payload: PlayerDisconnectedPayload = {
+            playerId: userId,
+            remainingSeconds: DISCONNECT_TIMEOUT_SECONDS,
+          };
+          sendToUser(opponentId, WsEventType.PLAYER_DISCONNECTED, payload);
+        }
+      }
+    }
+  }
+
 
   removeFinishedGame(gameId: string): void {
     gameSessionManager.removeSession(gameId);
