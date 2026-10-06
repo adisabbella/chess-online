@@ -129,4 +129,3 @@ function Queue(): React.JSX.Element {
 }
 
 export default Queue;
-

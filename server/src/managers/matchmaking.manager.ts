@@ -43,7 +43,6 @@ class MatchmakingManager {
       const playerAId = this.queue.shift()!;
       const playerBId = this.queue.shift()!;
 
-      // createGame is now async and persists to DB before returning
       const session = await gameManager.createGame(playerAId, playerBId);
       console.log(`[matchmaking] matched ${playerAId} vs ${playerBId}`);
 

@@ -21,9 +21,6 @@ function getResultText(data: GameOverPayload, playerColor: PlayerColor | null): 
   const playerWon =
     (data.result === 'WHITE_WIN' && playerColor === 'white') ||
     (data.result === 'BLACK_WIN' && playerColor === 'black');
-  if (data.reason === 'ABANDONMENT') {
-    return playerWon ? 'You win!' : 'You lose';
-  }
   return playerWon ? 'You win!' : 'You lose';
 }
 
@@ -49,7 +46,6 @@ function getReasonText(reason: string): string {
   };
   return reasons[reason] ?? reason;
 }
-
 
 function GameInfo({
   turn,
@@ -167,4 +163,3 @@ function GameInfo({
 }
 
 export default React.memo(GameInfo);
-

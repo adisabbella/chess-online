@@ -45,7 +45,6 @@ export function initWebSocketServer(httpServer: HttpServer): void {
     connectionManager.addConnection(userId, socket);
 
     socket.on('message', (data) => {
-      console.log(`[ws] message from ${userId}: ${data.toString()}`);
       eventDispatcher.dispatch(socket, userId, data.toString());
     });
 

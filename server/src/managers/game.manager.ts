@@ -345,7 +345,6 @@ class GameManager {
     gameSessionManager.removeSession(session.gameId);
   }
 
-
   // ─── Server Restart Recovery ────────────────────────────────────────────────
 
   /**

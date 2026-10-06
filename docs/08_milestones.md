@@ -309,30 +309,7 @@ Improve user experience.
 
 ---
 
-# Milestone 10 — Testing & Hardening
-
-## Goals
-
-Improve stability and reliability.
-
-## Tasks
-
-- Unit testing
-- Integration testing
-- End-to-end gameplay testing
-- Error handling improvements
-- Validation improvements
-- Performance review
-- Security review
-- Bug fixes
-
-## Output
-
-- Stable local application
-
----
-
-# Milestone 11 — Final Cleanup
+# Milestone 10 — Final Cleanup
 
 ## Goals
 
@@ -356,20 +333,20 @@ Prepare the repository for long-term maintenance.
 
 # Final Outcome
 
-After completing all milestones:
+All 10 milestones are complete. The delivered application includes:
 
-- Secure authentication
-- Persistent PostgreSQL database
-- JWT authentication with HTTP-only cookies
-- Real-time multiplayer chess
-- Random matchmaking
-- Complete chess rules
-- Automatic reconnection
-- Crash recovery
-- Permanent game history
-- Player statistics
-- Clean architecture
-- Fully documented codebase
+- Secure authentication (JWT, HttpOnly cookies, bcrypt)
+- Persistent PostgreSQL database with full game and move history
+- Real-time multiplayer chess over WebSocket
+- Server-authoritative move validation (chess.js)
+- Random matchmaking (FIFO queue)
+- Complete chess rules (check, checkmate, stalemate, castling, en passant, promotion, draws)
+- Resignation and draw-offer flows
+- 60-second reconnection window with board-state restore
+- Server-restart crash recovery (active games restored from DB)
+- Player statistics (wins, losses, draws, games played)
+- Polished React frontend (responsive, dark theme, move history, game-over screen)
+- Clean, maintainable, architecturally consistent codebase
 
 ---
 

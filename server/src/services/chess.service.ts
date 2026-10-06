@@ -62,10 +62,6 @@ export class ChessService {
     return this.chess.isStalemate();
   }
 
-  isDraw(): boolean {
-    return this.chess.isDraw();
-  }
-
   isInsufficientMaterial(): boolean {
     return this.chess.isInsufficientMaterial();
   }
@@ -76,9 +72,5 @@ export class ChessService {
 
   isDrawByFiftyMoves(): boolean {
     return this.chess.isDrawByFiftyMoves();
-  }
-
-  isGameOver(): boolean {
-    return this.chess.isGameOver();
   }
 }
