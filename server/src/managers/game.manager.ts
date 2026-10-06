@@ -284,9 +284,16 @@ class GameManager {
    */
   private handleAbandon(abandonedUserId: string, session: GameSession): void {
     if (session.status !== 'active') {
-      // Game already ended through other means while timer was running
+      // Game already ended through other means while timer was running.
+      // Also catches the case where this same session's OTHER player's abandon
+      // callback fires after this one has already finalized it.
       return;
     }
+
+    // Mark as finished immediately so any concurrently queued abandon callback
+    // for the same session (e.g. both players disconnected; both 60s timers
+    // fired in the same event-loop cycle) is rejected by the guard above.
+    session.markFinished();
 
     // Cancel ALL remaining disconnect timers immediately — including any timer
     // for the opponent that may also be pending. Without this, if both players

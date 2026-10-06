@@ -197,6 +197,23 @@ export class GameSession {
   }
 
   /**
+   * Marks the session as finished externally.
+   *
+   * This is the only terminal path where the session status must be set from
+   * outside the session itself — abandonment (disconnect-timer expiry). All
+   * other finalization paths (makeMove → checkmate/stalemate/draw, resign,
+   * respondDraw) set `_status = 'finished'` internally.
+   *
+   * Must be called at the start of handleAbandon (after the status guard
+   * passes) so that any concurrently queued abandon callback for the same
+   * session is rejected by the `session.status !== 'active'` guard and does
+   * not produce a duplicate GAME_OVER broadcast.
+   */
+  markFinished(): void {
+    this._status = 'finished';
+  }
+
+  /**
    * Cancels all active disconnect timers.
    * Called when the game ends (resign, checkmate, etc.) to prevent spurious
    * abandon callbacks firing after game removal.
